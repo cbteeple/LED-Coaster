@@ -36,10 +36,10 @@ uint8_t BrightnessIDX=0;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 bool oldState = HIGH;
-int showType = 0;
-int numShows = 12;
+int showType = 1;
+int numShows = 18;
 bool switchShows = false;
-float Brightness = BRIGHT_LEVELS[0];
+float Brightness = BRIGHT_LEVELS[3];
 bool requiresLoop=0;
 bool newButton=false;
 
@@ -62,6 +62,10 @@ void setup() {
   pinMode(PIXEL_PIN, OUTPUT);
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
+
+  #ifdef DEBUG
+    Serial.begin(115200);
+  #endif
   
   attachPCINT(digitalPinToPCINT(BUTTON_PIN), debounce, CHANGE);
   
@@ -95,41 +99,65 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 1:{showColorAnimate(255, 255, 0,30);
+      case 1: {genPulse(255, 46, 0,20);
+          requiresLoop=0;
+        } //Red
+        break;
+      case 2:{showColorAnimate(255, 255, 0,30);
           requiresLoop=0;
         }//Yellow
         break;
-      case 2:{showColorAnimate(0, 255, 0,30);
+      case 3: {genPulse(255, 255, 0,20);
+          requiresLoop=0;
+        } //Red
+        break;
+      case 4:{showColorAnimate(0, 255, 0,30);
           requiresLoop=0;
         }//Green
         break;
-      case 3:{ showColorAnimate(0, 30, 255,30); //Blue
+      case 5: {genPulse(0, 255, 0,20);
+          requiresLoop=0;
+        } //Red
+        break;
+      case 6:{ showColorAnimate(0, 30, 255,30); //Blue
           requiresLoop=0;
         }
         break;
-      case 4:{ showColorAnimate(120, 0, 255,30); //Purple
+      case 7: {genPulse(0, 30, 255,20);
+          requiresLoop=0;
+        } //Red
+        break;
+      case 8:{ showColorAnimate(120, 0, 255,30); //Purple
           requiresLoop=0;
         }
         break;
-      case 5:{ showColorAnimate(255, 0, 255,30); //Pink
+      case 9: {genPulse(120, 0, 255,20);
+          requiresLoop=0;
+        } //Red
+        break;
+      case 10:{ showColorAnimate(255, 0, 255,30); //Pink
           requiresLoop=0;
         }
         break;
-      case 6: {showRainbow(30); //Rainbow
+      case 11: {genPulse(255, 0, 255,20);
+          requiresLoop=0;
+        } //Red
+        break;
+      case 12: {showRainbow(30); //Rainbow
         requiresLoop=0;
         }
         break;
         //Michigan
-      case 7: halfAndHalfAnimated(255,255,0,0,31,173,20);
+      case 14: halfAndHalfAnimated(255,255,0,0,31,173,20);
         break;
         //Michigan State
-      case 8: halfAndHalfAnimated(255,255,255,50,200,100,20);
+      case 13: halfAndHalfAnimated(255,255,255,50,200,100,20);
         break;
-      case 9: rainbowCycleDim(40,1,true);
+      case 15: rainbowCycleDim(40,1,true);
         break;
-      case 10: rainbowCycleDim(5,1,false);
+      case 16: rainbowCycleDim(5,1,false);
         break;
-      case 11: rainbowCycleDim(20,1,false);
+      case 17: rainbowCycleDim(20,1,false);
         break;
   }
 }
@@ -142,8 +170,8 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
   uint16_t i, j;
 
   for(j=0; j<256*reps; j++) { // 5 cycles of all colors on wheel
-    if (setBright | switchShows){
-      break;
+    if (setBright || switchShows){
+      break ;
     }
     
     for(i=0; i< strip.numPixels(); i++) {
@@ -188,7 +216,7 @@ void halfAndHalfAnimated(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t
     //Slowly rotate   
     for (k=0; k<strip.numPixels(); k++){
       for (j=0; j<128; j++){
-        if (setBright | switchShows){
+        if (setBright || switchShows){
           return;
         }
         float ratio=float(j/128.0);
@@ -200,6 +228,51 @@ void halfAndHalfAnimated(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t
     }
     
 }
+
+
+
+
+void genPulse(uint8_t red, uint8_t green,uint8_t blue,uint16_t wait){
+  
+  bool flip = true;
+  float bright1=Brightness;
+  float bright2=Brightness/3;
+  float bright_tmp = bright1;
+  int maxSteps=127;
+  float progress=0.0;
+
+  showColorAnimate(red/float(3), green/float(3), blue/float(3),30);
+
+  for (uint8_t k=0;k<2;k++){
+    for (uint16_t i=0; i<maxSteps+1; i++){
+      if (setBright || switchShows){
+        break;
+      }      
+      progress=BezierBlend(float(i)/float(maxSteps));
+       
+      //Calculate the brightness to use;
+      if (flip){
+        bright_tmp=(progress)*bright1+(1-progress)*bright2;
+      }
+      else{
+        bright_tmp=(progress)*bright2+(1-progress)*bright1;
+      }
+  
+      //Apply that brightness to all pixels
+      for (uint8_t j=0; j<strip.numPixels(); j++){
+          strip.setPixelColor(j, strip.Color(red*bright_tmp,green*bright_tmp,blue*bright_tmp));
+      }
+  
+      //update values to al pixels
+      strip.show(); 
+  
+      //Wait the correct amount of time
+      delay(wait);
+    }
+    flip=!flip;
+  } 
+}
+
 
 
 
@@ -311,6 +384,31 @@ void incrementBrightness(){
 }
 
 
+
+/* InOutQuadBlend takes in elements of a vector of times [0;1]
+ *  and returns wait times. 
+ */
+
+float InOutQuadBlend(float t)
+{
+    if(t <= 0.5f)
+        return (2.0f * t*t);
+    t -= 0.5;
+    return (2.0f * t * (1.0f - t) + 0.5);
+}
+
+
+
+
+float BezierBlend(float t)
+{
+    return (t*t) * (3.0f - 2.0f * t);
+}
+
+
+
+
+
 void saveSettings(){
   //EEPROM_writeAnything(BRIGHTNESS_DATA_START, Brightness);
   EEPROM.write(SHOW_DATA_START, showType);
@@ -334,3 +432,7 @@ void readSettings(){
     Brightness=BRIGHT_LEVELS[BrightnessIDX];
   }
 }
+
+
+
+
