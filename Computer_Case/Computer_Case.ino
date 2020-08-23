@@ -7,7 +7,6 @@
 // button once to start the first animation!
 
 #include <Adafruit_NeoPixel.h>
-//#include "PinChangeInterrupt.h"
 
 
 #define BUTTON_PIN 2    // Digital IO pin connected to the button.  This will be
@@ -37,7 +36,7 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NE
 
 bool oldState = HIGH;
 int showType = 1;
-int numShows = 18;
+int numShows = 19;
 bool switchShows = false;
 float Brightness = BRIGHT_LEVELS[3];
 bool requiresLoop=0;
@@ -59,6 +58,8 @@ volatile unsigned long last_micros;
 bool setBright = false;
 bool firstcall=true;
 
+
+#define DEBUG
 
 void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
@@ -96,11 +97,12 @@ void loop() {
       startShow();
     }
   }
+  handleSerial();
 }
 
 void startShow() {
   switch (showType){
-      case 0: {showColorAnimate(255, 46, 0,30);
+      case 0: {showColorAnimate(255, 46, 0,10);
           requiresLoop=0;
         } //Red
         break;
@@ -108,7 +110,7 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 2:{showColorAnimate(255, 255, 0,30);
+      case 2:{showColorAnimate(255, 255, 0,10);
           requiresLoop=0;
         }//Yellow
         break;
@@ -116,7 +118,7 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 4:{showColorAnimate(0, 255, 0,30);
+      case 4:{showColorAnimate(0, 255, 0,10);
           requiresLoop=0;
         }//Green
         break;
@@ -124,7 +126,7 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 6:{ showColorAnimate(0, 30, 255,30); //Blue
+      case 6:{ showColorAnimate(0, 30, 255,10); //Blue
           requiresLoop=0;
         }
         break;
@@ -132,37 +134,46 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 8:{ showColorAnimate(120, 0, 255,30); //Purple
+      case 8:{
+          showColorAnimate(120, 0, 255,10); //Purple
           requiresLoop=0;
         }
         break;
-      case 9: {genPulse(120, 0, 255,20);
+      case 9: {
+          genPulse(120, 0, 255,20);
           requiresLoop=0;
         } //Red
         break;
-      case 10:{ showColorAnimate(255, 0, 255,30); //Pink
+      case 10:{
+          showColorAnimate(255, 0, 255,10); //Pink
           requiresLoop=0;
         }
         break;
-      case 11: {genPulse(255, 0, 255,20);
+      case 11: {
+          genPulse(255, 0, 255,20);
           requiresLoop=0;
         } //Red
         break;
-      case 12: {showRainbow(30); //Rainbow
+      //White
+      case 12:{
+          showColorAnimate(255, 250, 245,10); //White
+          requiresLoop=0;
+        }
+        break;
+      case 13: {showRainbow(30); //Rainbow
         requiresLoop=0;
         }
         break;
         //Michigan
-      case 14: halfAndHalfAnimated(255,255,0,0,31,173,20);
+      case 14: halfAndHalf(255,255,0,0,31,173,20); // halfAndHalfAnimated(255,255,0,0,31,173,20);
         break;
-        //Michigan State
-      case 13: halfAndHalfAnimated(255,255,255,50,200,100,20);
+      case 15: rainbowCycleDim(20,1,true);
         break;
-      case 15: rainbowCycleDim(40,1,true);
+      case 16: rainbowCycleDim(60,1,true);
         break;
-      case 16: rainbowCycleDim(5,1,false);
+      case 17: rainbowCycleDim(5,1,false);
         break;
-      case 17: rainbowCycleDim(20,1,false);
+      case 18: rainbowCycleDim(20,1,false);
         break;
   }
 }
@@ -446,4 +457,75 @@ void readSettings(){
     BrightnessIDX = tmpBright;
     Brightness=BRIGHT_LEVELS[BrightnessIDX];
   }
+}
+
+
+
+
+void handleSerial(){
+
+  String command = readCommand();
+
+  if (command != ""){
+    String cmdStr = getStringValue(command, ';', 0);
+  
+    if (cmdStr == "BRIGHT"){
+      BrightnessIDX = constrain(getStringValue(command, ';', 1).toInt(), 0, numBrightLevels-1);
+      Brightness=BRIGHT_LEVELS[BrightnessIDX];
+      sendCommand("BRIGHT: Set Brigtness to "+String(Brightness*100)+"%");
+      saveSettings();
+    }
+    else if(cmdStr == "SET"){
+      showType = constrain(getStringValue(command, ';', 1).toInt(), 0, numShows-1);
+      sendCommand("SET: Set Show to "+String(showType));
+      saveSettings();
+    }
+    else{
+        sendCommand("UNREC: Unrecognized Command");
+    }
+  }
+
+}
+
+
+String getStringValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length() - 1;
+
+  for (int i = 0; i <= maxIndex && found <= index; i++) {
+    if (data.charAt(i) == separator || i == maxIndex) {
+      found++;
+      strIndex[0] = strIndex[1] + 1;
+      strIndex[1] = (i == maxIndex) ? i + 1 : i;
+    }
+  }
+
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+
+String readCommand() {
+  String command;
+  //unsigned long start_time = micros();
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read();
+    // Add new byte to the inputString:
+    command += inChar;
+    // If the incoming character is a newline, set a flag so we can process it
+    if (inChar == '\n') {
+      command.toUpperCase();
+      //Serial.print("_SER: Line Complete");
+      //Serial.print('\t');
+      //Serial.println(micros() - start_time);
+      return command;
+    }
+  }
+  return "";
+}
+
+void sendCommand(String bc_string){
+  Serial.println(bc_string);
 }
