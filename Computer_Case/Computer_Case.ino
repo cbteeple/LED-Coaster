@@ -20,6 +20,7 @@
 
 const uint8_t BRIGHTNESS_DATA_START = 0;
 const uint8_t SHOW_DATA_START = 4;
+const uint8_t SHOW_ON_START = 8;
 
 const int numBrightLevels = 10;
 const float BRIGHT_LEVELS[numBrightLevels]={0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00};
@@ -35,6 +36,7 @@ uint8_t BrightnessIDX=0;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 bool oldState = HIGH;
+bool showOn= true;
 int showType = 1;
 int numShows = 19;
 bool switchShows = false;
@@ -83,7 +85,10 @@ void loop() {
     firstcall=false;
   }
   else{
-    if (setBright){
+    if (!showOn){
+      showColorAnimate(0,0,0, 30);
+    }
+    else if (setBright){
       startBlink(150);
       startBlink(150);
       showColor(128,128,128);
@@ -102,7 +107,7 @@ void loop() {
 
 void startShow() {
   switch (showType){
-      case 0: {showColorAnimate(255, 46, 0,10);
+      case 0: {showColorAnimate(255, 46, 0,20);
           requiresLoop=0;
         } //Red
         break;
@@ -110,7 +115,7 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 2:{showColorAnimate(255, 255, 0,10);
+      case 2:{showColorAnimate(255, 255, 0,20);
           requiresLoop=0;
         }//Yellow
         break;
@@ -118,7 +123,7 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 4:{showColorAnimate(0, 255, 0,10);
+      case 4:{showColorAnimate(0, 255, 0,20);
           requiresLoop=0;
         }//Green
         break;
@@ -126,7 +131,7 @@ void startShow() {
           requiresLoop=0;
         } //Red
         break;
-      case 6:{ showColorAnimate(0, 30, 255,10); //Blue
+      case 6:{ showColorAnimate(0, 30, 255,20); //Blue
           requiresLoop=0;
         }
         break;
@@ -135,7 +140,7 @@ void startShow() {
         } //Red
         break;
       case 8:{
-          showColorAnimate(120, 0, 255,10); //Purple
+          showColorAnimate(120, 0, 255,20); //Purple
           requiresLoop=0;
         }
         break;
@@ -145,7 +150,7 @@ void startShow() {
         } //Red
         break;
       case 10:{
-          showColorAnimate(255, 0, 255,10); //Pink
+          showColorAnimate(255, 0, 255,20); //Pink
           requiresLoop=0;
         }
         break;
@@ -156,7 +161,7 @@ void startShow() {
         break;
       //White
       case 12:{
-          showColorAnimate(255, 250, 245,10); //White
+          showColorAnimate(255, 250, 245,20); //White
           requiresLoop=0;
         }
         break;
@@ -171,9 +176,9 @@ void startShow() {
         break;
       case 16: rainbowCycleDim(60,1,true);
         break;
-      case 17: rainbowCycleDim(5,1,false);
+      case 17: rainbowCycleDim(10,1,false);
         break;
-      case 18: rainbowCycleDim(20,1,false);
+      case 18: rainbowCycleDim(30,1,false);
         break;
   }
 }
@@ -437,6 +442,7 @@ float BezierBlend(float t)
 
 void saveSettings(){
   //EEPROM_writeAnything(BRIGHTNESS_DATA_START, Brightness);
+  EEPROM.write(SHOW_ON_START, showOn);
   EEPROM.write(SHOW_DATA_START, showType);
   EEPROM.write(BRIGHTNESS_DATA_START, BrightnessIDX);
   //EEPROM_writeAnything(, showType);
@@ -445,6 +451,7 @@ void saveSettings(){
 void readSettings(){
     //Read old settings from EEPROM
   //EEPROM_readAnything(BRIGHTNESS_DATA_START, Brightness);
+  showOn = EEPROM.read(SHOW_ON_START);
   uint8_t tmpShow= EEPROM.read(SHOW_DATA_START);
   uint8_t tmpBright=EEPROM.read(BRIGHTNESS_DATA_START);
 
@@ -453,6 +460,7 @@ void readSettings(){
   if (tmpShow<numShows & tmpShow>=0){
     showType = tmpShow;
   }
+ 
   if(tmpBright<numBrightLevels & tmpBright>=0){
     BrightnessIDX = tmpBright;
     Brightness=BRIGHT_LEVELS[BrightnessIDX];
@@ -470,14 +478,29 @@ void handleSerial(){
     String cmdStr = getStringValue(command, ';', 0);
   
     if (cmdStr == "BRIGHT"){
-      BrightnessIDX = constrain(getStringValue(command, ';', 1).toInt(), 0, numBrightLevels-1);
-      Brightness=BRIGHT_LEVELS[BrightnessIDX];
-      sendCommand("BRIGHT: Set Brigtness to "+String(Brightness*100)+"%");
-      saveSettings();
+      if (getStringValue(command, ';', 1).length()){
+        BrightnessIDX = constrain(getStringValue(command, ';', 1).toInt(), 0, numBrightLevels-1);
+        Brightness=BRIGHT_LEVELS[BrightnessIDX];
+        saveSettings();
+        }
+      sendCommand("BRIGHT: Brightness set to "+String(Brightness*100)+"%");
+      
     }
     else if(cmdStr == "SET"){
-      showType = constrain(getStringValue(command, ';', 1).toInt(), 0, numShows-1);
-      sendCommand("SET: Set Show to "+String(showType));
+      if (getStringValue(command, ';', 1).length()){
+        showType = constrain(getStringValue(command, ';', 1).toInt(), 0, numShows-1);
+        saveSettings();
+      }
+      sendCommand("SET: Show set to "+String(showType));
+    }
+    else if(cmdStr == "ON"){
+      showOn = true;
+      sendCommand("ON: Lights On");
+      saveSettings();
+    }
+    else if(cmdStr == "OFF"){
+      showOn = false;
+      sendCommand("OFF: Lights Off");
       saveSettings();
     }
     else{
@@ -490,6 +513,9 @@ void handleSerial(){
 
 String getStringValue(String data, char separator, int index)
 {
+  if (data.indexOf(";") == -1 && index==0){
+    return  data;
+  }
   int found = 0;
   int strIndex[] = {0, -1};
   int maxIndex = data.length() - 1;
@@ -512,8 +538,6 @@ String readCommand() {
   while (Serial.available()) {
     // get the new byte:
     char inChar = (char)Serial.read();
-    // Add new byte to the inputString:
-    command += inChar;
     // If the incoming character is a newline, set a flag so we can process it
     if (inChar == '\n') {
       command.toUpperCase();
@@ -522,6 +546,8 @@ String readCommand() {
       //Serial.println(micros() - start_time);
       return command;
     }
+    // Add new byte to the inputString:
+    command += inChar;
   }
   return "";
 }
