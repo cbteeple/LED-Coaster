@@ -21,6 +21,8 @@
 const uint8_t BRIGHTNESS_DATA_START = 0;
 const uint8_t SHOW_DATA_START = 4;
 const uint8_t SHOW_ON_START = 8;
+const uint8_t ANIMATION_START = 12;
+const uint8_t PULSE_START = 16;
 
 const int numBrightLevels = 10;
 const float BRIGHT_LEVELS[numBrightLevels]={0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00};
@@ -57,6 +59,9 @@ unsigned long startBrightCurr=0;
 unsigned long debouncing_time = 400; // [ms] Debouncing time
 volatile unsigned long last_micros;
 
+uint8_t global_animation_time=30;
+uint8_t global_pulse_time=20;
+
 bool setBright = false;
 bool firstcall=true;
 
@@ -86,7 +91,7 @@ void loop() {
   }
   else{
     if (!showOn){
-      showColorAnimate(0,0,0, 30);
+      showColorAnimate(0,0,0, global_animation_time);
     }
     else if (setBright){
       startBlink(150);
@@ -107,70 +112,70 @@ void loop() {
 
 void startShow() {
   switch (showType){
-      case 0: {showColorAnimate(255, 46, 0,20);
+      case 0: {showColorAnimate(255, 46, 0,global_animation_time);
           requiresLoop=0;
         } //Red
         break;
-      case 1: {genPulse(255, 46, 0,20);
+      case 1: {genPulse(255, 46, 0,global_pulse_time);
           requiresLoop=0;
         } //Red
         break;
-      case 2:{showColorAnimate(255, 255, 0,20);
+      case 2:{showColorAnimate(255, 255, 0,global_animation_time);
           requiresLoop=0;
         }//Yellow
         break;
-      case 3: {genPulse(255, 255, 0,20);
+      case 3: {genPulse(255, 255, 0,global_pulse_time);
           requiresLoop=0;
         } //Red
         break;
-      case 4:{showColorAnimate(0, 255, 0,20);
+      case 4:{showColorAnimate(0, 255, 0,global_animation_time);
           requiresLoop=0;
         }//Green
         break;
-      case 5: {genPulse(0, 255, 0,20);
+      case 5: {genPulse(0, 255, 0,global_pulse_time);
           requiresLoop=0;
         } //Red
         break;
-      case 6:{ showColorAnimate(0, 30, 255,20); //Blue
+      case 6:{ showColorAnimate(0, 30, 255,global_animation_time); //Blue
           requiresLoop=0;
         }
         break;
-      case 7: {genPulse(0, 30, 255,20);
+      case 7: {genPulse(0, 30, 255,global_pulse_time);
           requiresLoop=0;
         } //Red
         break;
       case 8:{
-          showColorAnimate(120, 0, 255,20); //Purple
+          showColorAnimate(120, 0, 255,global_animation_time); //Purple
           requiresLoop=0;
         }
         break;
       case 9: {
-          genPulse(120, 0, 255,20);
+          genPulse(120, 0, 255,global_pulse_time);
           requiresLoop=0;
         } //Red
         break;
       case 10:{
-          showColorAnimate(255, 0, 255,20); //Pink
+          showColorAnimate(255, 0, 255,global_animation_time); //Pink
           requiresLoop=0;
         }
         break;
       case 11: {
-          genPulse(255, 0, 255,20);
+          genPulse(255, 0, 255,global_pulse_time);
           requiresLoop=0;
         } //Red
         break;
       //White
       case 12:{
-          showColorAnimate(255, 250, 245,20); //White
+          showColorAnimate(255, 250, 245,global_animation_time); //White
           requiresLoop=0;
         }
         break;
-      case 13: {showRainbow(30); //Rainbow
+      case 13: {showRainbow(global_animation_time); //Rainbow
         requiresLoop=0;
         }
         break;
         //Michigan
-      case 14: halfAndHalf(255,255,0,0,31,173,20); // halfAndHalfAnimated(255,255,0,0,31,173,20);
+      case 14: halfAndHalf(255,255,0,0,31,173,global_animation_time); // halfAndHalfAnimated(255,255,0,0,31,173,20);
         break;
       case 15: rainbowCycleDim(20,1,true);
         break;
@@ -191,6 +196,8 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
   uint16_t i, j;
 
   for(j=0; j<256*reps; j++) { // 5 cycles of all colors on wheel
+    handleSerial();
+    
     if (setBright || switchShows){
       break ;
     }
@@ -202,9 +209,15 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
       else{
         strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
       }
+
+      if (j==0){
+        strip.show();
+        delay(global_animation_time);
+       }
     }
     strip.show();
     delay(wait);
+    
   }
 }
 
@@ -237,6 +250,7 @@ void halfAndHalfAnimated(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t
     //Slowly rotate   
     for (k=0; k<strip.numPixels(); k++){
       for (j=0; j<128; j++){
+        handleSerial();
         if (setBright || switchShows){
           return;
         }
@@ -262,10 +276,11 @@ void genPulse(uint8_t red, uint8_t green,uint8_t blue,uint16_t wait){
   int maxSteps=127;
   float progress=0.0;
 
-  showColorAnimate(red/float(3), green/float(3), blue/float(3),30);
+  showColorAnimate(red/float(3), green/float(3), blue/float(3),global_animation_time);
 
   for (uint8_t k=0;k<2;k++){
     for (uint16_t i=0; i<maxSteps+1; i++){
+      handleSerial();
       if (setBright || switchShows){
         break;
       }      
@@ -445,6 +460,9 @@ void saveSettings(){
   EEPROM.write(SHOW_ON_START, showOn);
   EEPROM.write(SHOW_DATA_START, showType);
   EEPROM.write(BRIGHTNESS_DATA_START, BrightnessIDX);
+  EEPROM.write(ANIMATION_START, global_animation_time);
+  EEPROM.write(PULSE_START, global_pulse_time);
+
   //EEPROM_writeAnything(, showType);
 }
 
@@ -454,6 +472,8 @@ void readSettings(){
   showOn = EEPROM.read(SHOW_ON_START);
   uint8_t tmpShow= EEPROM.read(SHOW_DATA_START);
   uint8_t tmpBright=EEPROM.read(BRIGHTNESS_DATA_START);
+  uint8_t tmp_ani=EEPROM.read(ANIMATION_START);
+  uint8_t tmp_pulse=EEPROM.read(PULSE_START);
 
   
   //If show number is unreasonable, go back to default
@@ -465,6 +485,16 @@ void readSettings(){
     BrightnessIDX = tmpBright;
     Brightness=BRIGHT_LEVELS[BrightnessIDX];
   }
+
+  if(tmp_ani<255 & tmp_ani>=0){
+    global_animation_time = tmp_ani;
+  }
+
+  if(tmp_pulse<255 & tmp_pulse>=0){
+    global_pulse_time = tmp_pulse;
+  }
+
+
 }
 
 
@@ -483,15 +513,16 @@ void handleSerial(){
         Brightness=BRIGHT_LEVELS[BrightnessIDX];
         saveSettings();
         }
-      sendCommand("BRIGHT: Brightness set to "+String(Brightness*100)+"%");
+      sendCommand("BRIGHT: Brightness: "+String(Brightness*100)+"%");
       
     }
     else if(cmdStr == "SET"){
       if (getStringValue(command, ';', 1).length()){
         showType = constrain(getStringValue(command, ';', 1).toInt(), 0, numShows-1);
         saveSettings();
+        switchShows=true;
       }
-      sendCommand("SET: Show set to "+String(showType));
+      sendCommand("SET: Show: "+String(showType));
     }
     else if(cmdStr == "ON"){
       showOn = true;
@@ -502,6 +533,23 @@ void handleSerial(){
       showOn = false;
       sendCommand("OFF: Lights Off");
       saveSettings();
+      switchShows=true;
+    }
+    else if(cmdStr == "TIME"){
+      if (getStringValue(command, ';', 1).length()){
+        global_animation_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 1000);
+        saveSettings();
+      }
+      sendCommand("TIME: Animation Time: " +String(global_animation_time));
+    }
+
+    else if(cmdStr == "PULSE"){
+      if (getStringValue(command, ';', 1).length()){
+        global_pulse_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 1000);
+        saveSettings();
+        switchShows=true;
+      }
+      sendCommand("PULSE: Pulse Time: " +String(global_pulse_time));
     }
     else{
         sendCommand("UNREC: Unrecognized Command");
