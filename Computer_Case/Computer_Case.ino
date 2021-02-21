@@ -18,7 +18,7 @@
 #define STRIP2_PIN    6    // Digital IO pin connected to the NeoPixels.
 
 #define STRIP1_PIXEL_COUNT 22
-#define STRIP2_PIXEL_COUNT 24
+#define STRIP2_PIXEL_COUNT 12
 
 const uint8_t BRIGHTNESS_DATA_START = 0;
 const uint8_t SHOW_DATA_START = 4;
@@ -48,6 +48,7 @@ bool switchShows = false;
 float Brightness = BRIGHT_LEVELS[3];
 bool requiresLoop=0;
 bool newButton=false;
+bool transition = true;
 
 
 
@@ -211,13 +212,13 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
     
     for(i=0; i< strip.numPixels(); i++) {
       if (FullColor){
-        strip.setPixelColor(i, Wheel(j & 255, strip));
+        strip.setPixelColor(i, Wheel(j & 255));
         }
       else{
-        strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255, strip));
+        strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
       }
 
-      if (j==0){
+      if (j==0 && transition){
         strip.show();
         delay(global_animation_time);
        }
@@ -225,16 +226,17 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
     }
     for(i=0; i< strip2.numPixels(); i++){
       if (FullColor){
-        strip2.setPixelColor(i, Wheel(j & 255, strip));
+        strip2.setPixelColor(i, Wheel(j & 255));
         }
       else{
-        strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255, strip));
+        strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255));
       }
-      if (j==0){
+      if (j==0 &&transition){
         strip2.show();
         delay(global_animation_time);
        }
     }
+    transition = false;
     strip.show();
     strip2.show();
     delay(wait);
@@ -362,20 +364,26 @@ void showColor(uint8_t red,uint8_t green,uint8_t blue){
       strip2.setPixelColor(i, strip2.Color(red*Brightness,green*Brightness,blue*Brightness));
   }
   strip.show();  
-  strip2.show();  
+  strip2.show();
+  transition=false;
 }
 
 
 void showColorAnimate(uint8_t red,uint8_t green,uint8_t blue,uint16_t wait){
-  num_pixels_longest = max(strip.numPixels(),strip2.numPixels())
+  uint8_t num_pixels_longest = max(strip.numPixels(),strip2.numPixels());
   for(int i=0; i< num_pixels_longest; i++) {
-      strip.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
-      strip2.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+      if(i<strip.numPixels()){
+        strip.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+      }
+      if(i<strip2.numPixels()){
+        strip2.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+      }
 
       strip.show();
       strip2.show(); 
       delay(wait);
   }
+  transition=false;
      
 }
 
@@ -384,15 +392,16 @@ void showRainbow(uint16_t wait){
   uint16_t j=0;
   uint16_t i=0;
   for(i=0; i< strip.numPixels(); i++) {
-    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255), strip);
+    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
     strip.show(); 
     delay(wait); 
   }
   for(i=0; i< strip2.numPixels(); i++) {
-    strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255, strip2));
+    strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255));
     strip2.show(); 
     delay(wait); 
   }
+  transition=false;
 }
 
 
@@ -406,7 +415,7 @@ void startBlink(uint16_t wait){
 
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos, Adafruit_NeoPixel strip) {
+uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
   if(WheelPos < 85) {
     return strip.Color((255 - WheelPos * 3)*Brightness, 0, (WheelPos * 3)*Brightness);
@@ -571,6 +580,7 @@ void handleSerial(){
         showType = constrain(getStringValue(command, ';', 1).toInt(), 0, numShows-1);
         saveSettings();
         switchShows=true;
+        transition = true;
       }
       sendCommand("SET: Show: "+String(showType));
     }
@@ -578,12 +588,14 @@ void handleSerial(){
       showOn = true;
       sendCommand("ON: Lights On");
       saveSettings();
+      transition=true;
     }
     else if(cmdStr == "OFF"){
       showOn = false;
       sendCommand("OFF: Lights Off");
       saveSettings();
       switchShows=true;
+      transition=true;
     }
     else if(cmdStr == "TIME"){
       if (getStringValue(command, ';', 1).length()){
