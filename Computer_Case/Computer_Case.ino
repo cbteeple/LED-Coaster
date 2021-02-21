@@ -14,9 +14,11 @@
                           // pull the pin to ground momentarily.  On a high -> low
                           // transition the button press logic will execute.
 
-#define PIXEL_PIN    5    // Digital IO pin connected to the NeoPixels.
+#define STRIP1_PIN    5    // Digital IO pin connected to the NeoPixels.
+#define STRIP2_PIN    6    // Digital IO pin connected to the NeoPixels.
 
-#define PIXEL_COUNT 22
+#define STRIP1_PIXEL_COUNT 22
+#define STRIP2_PIXEL_COUNT 24
 
 const uint8_t BRIGHTNESS_DATA_START = 0;
 const uint8_t SHOW_DATA_START = 4;
@@ -35,7 +37,8 @@ uint8_t BrightnessIDX=0;
 //   NEO_GRB     Pixels are wired for GRB bitstream, correct for neopixel stick
 //   NEO_KHZ400  400 KHz bitstream (e.g. FLORA pixels)
 //   NEO_KHZ800  800 KHz bitstream (e.g. High Density LED strip), correct for neopixel stick
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP1_PIXEL_COUNT, STRIP1_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(STRIP2_PIXEL_COUNT, STRIP2_PIN, NEO_GRB + NEO_KHZ800);
 
 bool oldState = HIGH;
 bool showOn= true;
@@ -70,9 +73,13 @@ bool firstcall=true;
 
 void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(PIXEL_PIN, OUTPUT);
+  pinMode(STRIP1_PIN, OUTPUT);
+  pinMode(STRIP2_PIN, OUTPUT);
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
+
+  strip2.begin();
+  strip2.show(); // Initialize all pixels to 'off'
 
   #ifdef DEBUG
     Serial.begin(115200);
@@ -204,18 +211,32 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
     
     for(i=0; i< strip.numPixels(); i++) {
       if (FullColor){
-        strip.setPixelColor(i, Wheel(j & 255));
+        strip.setPixelColor(i, Wheel(j & 255, strip));
         }
       else{
-        strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+        strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255, strip));
       }
 
       if (j==0){
         strip.show();
         delay(global_animation_time);
        }
+
+    }
+    for(i=0; i< strip2.numPixels(); i++){
+      if (FullColor){
+        strip2.setPixelColor(i, Wheel(j & 255, strip));
+        }
+      else{
+        strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255, strip));
+      }
+      if (j==0){
+        strip2.show();
+        delay(global_animation_time);
+       }
     }
     strip.show();
+    strip2.show();
     delay(wait);
     
   }
@@ -234,6 +255,17 @@ void halfAndHalf(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uin
         strip.setPixelColor(i, strip.Color(r2*Brightness,g2*Brightness,b2*Brightness));
       } 
       strip.show(); 
+      delay(wait);   
+    }
+
+    for(i=0; i< strip2.numPixels(); i++) {
+      if (i<strip2.numPixels()/2){
+        strip2.setPixelColor(i, strip.Color(r1*Brightness,g1*Brightness,b1*Brightness));
+      }
+      else if ((i>=strip2.numPixels()/2)){
+        strip2.setPixelColor(i, strip2.Color(r2*Brightness,g2*Brightness,b2*Brightness));
+      } 
+      strip2.show(); 
       delay(wait);   
     }
 }
@@ -298,9 +330,14 @@ void genPulse(uint8_t red, uint8_t green,uint8_t blue,uint16_t wait){
       for (uint8_t j=0; j<strip.numPixels(); j++){
           strip.setPixelColor(j, strip.Color(red*bright_tmp,green*bright_tmp,blue*bright_tmp));
       }
+
+      for (uint8_t j=0; j<strip2.numPixels(); j++){
+          strip2.setPixelColor(j, strip2.Color(red*bright_tmp,green*bright_tmp,blue*bright_tmp));
+      }
   
       //update values to al pixels
       strip.show(); 
+      strip2.show(); 
   
       //Wait the correct amount of time
       delay(wait);
@@ -321,14 +358,22 @@ void showColor(uint8_t red,uint8_t green,uint8_t blue){
   for(int i=0; i< strip.numPixels(); i++) {
       strip.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
   }
-    strip.show();  
+  for(int i=0; i< strip2.numPixels(); i++) {
+      strip2.setPixelColor(i, strip2.Color(red*Brightness,green*Brightness,blue*Brightness));
+  }
+  strip.show();  
+  strip2.show();  
 }
 
 
 void showColorAnimate(uint8_t red,uint8_t green,uint8_t blue,uint16_t wait){
-  for(int i=0; i< strip.numPixels(); i++) {
+  num_pixels_longest = max(strip.numPixels(),strip2.numPixels())
+  for(int i=0; i< num_pixels_longest; i++) {
       strip.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
-      strip.show(); 
+      strip2.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+
+      strip.show();
+      strip2.show(); 
       delay(wait);
   }
      
@@ -339,8 +384,13 @@ void showRainbow(uint16_t wait){
   uint16_t j=0;
   uint16_t i=0;
   for(i=0; i< strip.numPixels(); i++) {
-    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255), strip);
     strip.show(); 
+    delay(wait); 
+  }
+  for(i=0; i< strip2.numPixels(); i++) {
+    strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255, strip2));
+    strip2.show(); 
     delay(wait); 
   }
 }
@@ -356,7 +406,7 @@ void startBlink(uint16_t wait){
 
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos) {
+uint32_t Wheel(byte WheelPos, Adafruit_NeoPixel strip) {
   WheelPos = 255 - WheelPos;
   if(WheelPos < 85) {
     return strip.Color((255 - WheelPos * 3)*Brightness, 0, (WheelPos * 3)*Brightness);
