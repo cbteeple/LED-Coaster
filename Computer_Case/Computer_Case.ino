@@ -18,7 +18,7 @@
 #define STRIP2_PIN    6    // Digital IO pin connected to the NeoPixels.
 
 #define STRIP1_PIXEL_COUNT 22
-#define STRIP2_PIXEL_COUNT 12
+#define STRIP2_PIXEL_COUNT 30
 
 const uint8_t BRIGHTNESS_DATA_START = 0;
 const uint8_t SHOW_DATA_START = 4;
