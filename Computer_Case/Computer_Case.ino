@@ -18,13 +18,17 @@
 #define STRIP2_PIN    6    // Digital IO pin connected to the NeoPixels.
 
 #define STRIP1_PIXEL_COUNT 22
-#define STRIP2_PIXEL_COUNT 30
+#define STRIP2_PIXEL_COUNT 11
+
+bool STRIP1_INVERT = true;
+bool STRIP2_INVERT = false;
 
 const uint8_t BRIGHTNESS_DATA_START = 0;
-const uint8_t SHOW_DATA_START = 4;
-const uint8_t SHOW_ON_START = 8;
-const uint8_t ANIMATION_START = 12;
-const uint8_t PULSE_START = 16;
+const uint8_t SHOW_DATA_START = 1;
+const uint8_t SHOW_ON_START = 2;
+const uint8_t ANIMATION_START = 3;
+const uint8_t PULSE_START = 4;
+const uint8_t CYCLE_START = 5;
 
 const int numBrightLevels = 10;
 const float BRIGHT_LEVELS[numBrightLevels]={0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00};
@@ -65,6 +69,7 @@ volatile unsigned long last_micros;
 
 uint8_t global_animation_time=30;
 uint8_t global_pulse_time=20;
+uint8_t global_cycle_time=5;
 
 bool setBright = false;
 bool firstcall=true;
@@ -178,20 +183,20 @@ void startShow() {
           requiresLoop=0;
         }
         break;
-      case 13: {showRainbow(global_animation_time); //Rainbow
+      case 13: {showRainbowJustified(global_animation_time); //Rainbow
         requiresLoop=0;
         }
         break;
         //Michigan
       case 14: halfAndHalf(255,255,0,0,31,173,global_animation_time); // halfAndHalfAnimated(255,255,0,0,31,173,20);
         break;
-      case 15: rainbowCycleDim(20,1,true);
+      case 15: rainbowCycleDim(0.75,1,true);
         break;
-      case 16: rainbowCycleDim(60,1,true);
+      case 16: rainbowCycleDim(3,1,true);
         break;
-      case 17: rainbowCycleDim(10,1,false);
+      case 17: rainbowCycleDim(0.25,1,false);
         break;
-      case 18: rainbowCycleDim(30,1,false);
+      case 18: rainbowCycleDim(1,1,false);
         break;
   }
 }
@@ -200,10 +205,17 @@ void startShow() {
 //================================
 
 // Same as RainbowCycle, except Dimmer
-void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
+void rainbowCycleDim_OLD(float wait, uint8_t reps, bool FullColor) {
   uint16_t i, j;
+  int idx1 = 0;
+  int idx2 = 0;
+  int color_val1 = 0;
+  int color_val2 = 0;
 
-  for(j=0; j<256*reps; j++) { // 5 cycles of all colors on wheel
+  uint32_t num_frames = 256;
+  uint32_t total_reps = num_frames*reps;
+
+  for(j=0; j<total_reps; j++) { // 5 cycles of all colors on wheel
     handleSerial();
     
     if (setBright || switchShows){
@@ -215,7 +227,15 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
         strip.setPixelColor(i, Wheel(j & 255));
         }
       else{
-        strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+        idx1 = strip.numPixels() -1 -i;
+        idx2 = i;
+        color_val1 = j;
+        if (STRIP1_INVERT){
+          idx1 = i;
+          idx2 = strip.numPixels() -1 -i;
+          color_val1=total_reps-1-j;
+        }
+        strip.setPixelColor(idx1, Wheel(((idx2 * 256 / strip.numPixels()) + color_val1) & 255));
       }
 
       if (j==0 && transition){
@@ -224,12 +244,22 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
        }
 
     }
+
+    //Serial.print('\n');
     for(i=0; i< strip2.numPixels(); i++){
       if (FullColor){
         strip2.setPixelColor(i, Wheel(j & 255));
         }
       else{
-        strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255));
+        idx1 = strip2.numPixels() -1 -i;
+        idx2 = i;
+        color_val2 = j;
+        if (STRIP2_INVERT){
+          idx1 = i;
+          idx2 = strip2.numPixels() -1 -i;
+          color_val2=total_reps-1-j;
+        }
+        strip2.setPixelColor(idx1, Wheel(((idx2 * 256 / strip2.numPixels()) + color_val2) & 255));
       }
       if (j==0 &&transition){
         strip2.show();
@@ -244,6 +274,74 @@ void rainbowCycleDim(uint8_t wait, uint8_t reps, bool FullColor) {
   }
 }
 
+
+// Same as RainbowCycle, except Dimmer
+void rainbowCycleDim(float wait, uint8_t reps, bool FullColor) {
+  uint8_t real_wait = int(wait*float(global_cycle_time));
+  uint16_t i, j;
+  int idx1 = 0;
+  int idx2 = 0;
+  int color_val1 = 0;
+  int color_val2 = 0;
+
+  int num_frames = 256;
+  int total_reps = num_frames*reps;
+
+  uint8_t num_pixels_longest = max(strip.numPixels(),strip2.numPixels());
+
+  for(j=0; j<total_reps; j++) { // 5 cycles of all colors on wheel
+    handleSerial();
+    
+    if (setBright || switchShows){
+      break ;
+    }
+    
+    for(i=0; i< num_pixels_longest; i++) {      
+      if (FullColor){
+        strip.setPixelColor(i, Wheel(j & 255));
+        strip2.setPixelColor(i, Wheel(j & 255));
+      }
+      else{
+        idx1 = i;
+        idx2 = i;
+        color_val1 = j;
+        if (STRIP1_INVERT){
+          idx1 = num_pixels_longest -1 -i;
+          idx2 = i;
+          //color_val1=total_reps-1-j;
+        }
+        if(idx1>=0 & idx1<strip.numPixels()){
+          strip.setPixelColor(idx1, Wheel(((idx2 * 256 / num_pixels_longest) + color_val1) & 255));
+        }
+
+
+        idx1 = i;
+        idx2 = i;
+        color_val2 = j;
+        if (STRIP2_INVERT){
+          idx1 = num_pixels_longest -1 -i;
+          idx2 = i;
+          //color_val2=total_reps-1-j;
+        }
+        if(idx1>=0 & idx1<strip2.numPixels()){
+          strip2.setPixelColor(idx1, Wheel(((idx2 * 256 / num_pixels_longest) + color_val2) & 255));
+        }
+
+        if (j==0 && transition){
+          strip.show();
+          strip2.show();
+          delay(global_animation_time);
+         }
+      }
+    }
+       
+    transition = false;
+    strip.show();
+    strip2.show();
+    delay(real_wait);
+  }
+
+}
 
 
 
@@ -371,12 +469,23 @@ void showColor(uint8_t red,uint8_t green,uint8_t blue){
 
 void showColorAnimate(uint8_t red,uint8_t green,uint8_t blue,uint16_t wait){
   uint8_t num_pixels_longest = max(strip.numPixels(),strip2.numPixels());
+  int idx1 = 0;
+  int idx2 = 0;
   for(int i=0; i< num_pixels_longest; i++) {
-      if(i<strip.numPixels()){
-        strip.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+      idx1 = i;
+      if (STRIP1_INVERT){
+        idx1 = num_pixels_longest -1 -i;
       }
-      if(i<strip2.numPixels()){
-        strip2.setPixelColor(i, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+      if(idx1>=0 & idx1<strip.numPixels()){
+        strip.setPixelColor(idx1, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
+      }
+      
+      idx2 = i;
+      if (STRIP2_INVERT){
+        idx2 = num_pixels_longest -1 -i;
+      }
+      if(idx2>=0 & idx2<strip2.numPixels()){  
+        strip2.setPixelColor(idx2, strip.Color(red*Brightness,green*Brightness,blue*Brightness));
       }
 
       strip.show();
@@ -391,13 +500,56 @@ void showColorAnimate(uint8_t red,uint8_t green,uint8_t blue,uint16_t wait){
 void showRainbow(uint16_t wait){
   uint16_t j=0;
   uint16_t i=0;
+  int idx = 0;
   for(i=0; i< strip.numPixels(); i++) {
-    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+    idx=i;
+    if (STRIP1_INVERT){
+      idx = strip.numPixels() -1 -i;
+    }
+    strip.setPixelColor(idx, Wheel(((idx * 256 / strip.numPixels()) + j) & 255));
     strip.show(); 
     delay(wait); 
   }
   for(i=0; i< strip2.numPixels(); i++) {
-    strip2.setPixelColor(i, Wheel(((i * 256 / strip2.numPixels()) + j) & 255));
+    idx=i;
+    if (STRIP2_INVERT){
+      idx = strip2.numPixels() -1 -i;
+    }
+    strip2.setPixelColor(idx, Wheel(((idx * 256 / strip2.numPixels()) + j) & 255));
+    strip2.show(); 
+    delay(wait); 
+  }
+  transition=false;
+}
+
+
+void showRainbowJustified(uint16_t wait){
+  uint16_t j=0;
+  uint16_t i=0;
+  int idx1 = 0;
+  int idx2 = 0;
+  for(i=0; i< strip.numPixels(); i++) {
+    idx1=i;
+    idx2=i;
+    if (STRIP1_INVERT){
+      idx1 = strip.numPixels() -1 -i;
+      idx2 = i;
+      //j=256/2;
+    }
+    strip.setPixelColor(idx1, Wheel(((idx2 * 256 / strip.numPixels()) + j) & 255));
+    strip.show(); 
+    delay(wait); 
+  }
+  for(i=0; i< strip2.numPixels(); i++) {
+    idx1=i;
+    idx2=i;
+    j=0;
+    if (STRIP2_INVERT){
+      idx1 = strip2.numPixels() -1 -i;
+      idx2 = i;
+      //j=256/2;
+    }
+    strip2.setPixelColor(idx1, Wheel(((idx2 * 256 / strip2.numPixels()) + j) & 255));
     strip2.show(); 
     delay(wait); 
   }
@@ -413,21 +565,33 @@ void startBlink(uint16_t wait){
 }
 
 
+
+
+
+
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
   if(WheelPos < 85) {
-    return strip.Color((255 - WheelPos * 3)*Brightness, 0, (WheelPos * 3)*Brightness);
+    return strip.Color((255 - WheelPos * 3)*Brightness,
+                        0,
+                        (WheelPos * 3)*Brightness
+                        );
   }
   if(WheelPos < 170) {
     WheelPos -= 85;
-    return strip.Color(0, (WheelPos * 3)*Brightness, (255 - WheelPos * 3)*Brightness);
+    return strip.Color(0,
+                       (WheelPos * 3)*Brightness,
+                       (255 - WheelPos * 3)*Brightness
+                       );
   }
   WheelPos -= 170;
-  return strip.Color((WheelPos * 3)*Brightness, (255 - WheelPos * 3)*Brightness, 0);
+  return strip.Color((WheelPos * 3)*Brightness,
+                     (255 - WheelPos * 3)*Brightness,
+                     0
+                     );
 }
-
 
 
 //ISR
@@ -521,6 +685,7 @@ void saveSettings(){
   EEPROM.write(BRIGHTNESS_DATA_START, BrightnessIDX);
   EEPROM.write(ANIMATION_START, global_animation_time);
   EEPROM.write(PULSE_START, global_pulse_time);
+  EEPROM.write(CYCLE_START, global_cycle_time);
 
   //EEPROM_writeAnything(, showType);
 }
@@ -533,6 +698,7 @@ void readSettings(){
   uint8_t tmpBright=EEPROM.read(BRIGHTNESS_DATA_START);
   uint8_t tmp_ani=EEPROM.read(ANIMATION_START);
   uint8_t tmp_pulse=EEPROM.read(PULSE_START);
+  uint8_t tmp_cycle=EEPROM.read(CYCLE_START);
 
   
   //If show number is unreasonable, go back to default
@@ -552,6 +718,9 @@ void readSettings(){
   if(tmp_pulse<255 & tmp_pulse>=0){
     global_pulse_time = tmp_pulse;
   }
+  if(tmp_cycle<255 & tmp_cycle>=0){
+    global_cycle_time = tmp_cycle;
+  }
 
 
 }
@@ -568,8 +737,23 @@ void handleSerial(){
   
     if (cmdStr == "BRIGHT"){
       if (getStringValue(command, ';', 1).length()){
-        BrightnessIDX = constrain(getStringValue(command, ';', 1).toInt(), 0, numBrightLevels-1);
-        Brightness=BRIGHT_LEVELS[BrightnessIDX];
+        int tmp_bright = constrain(getStringValue(command, ';', 1).toInt(), 0, 100);
+
+        float tmp_brightness = tmp_bright/100.0;
+
+        uint8_t closest_idx = 0;
+        float last_diff = 10000.0;
+        for (int i=0; i<numBrightLevels; i++){
+          float curr_bright = BRIGHT_LEVELS[i];
+          float curr_diff = abs(curr_bright-tmp_brightness);
+          if (curr_diff<=last_diff){
+            closest_idx = i;
+          }
+        }
+         
+        BrightnessIDX = closest_idx;
+                
+        Brightness=tmp_brightness;
         saveSettings();
         }
       sendCommand("BRIGHT: Brightness: "+String(Brightness*100)+"%");
@@ -599,7 +783,7 @@ void handleSerial(){
     }
     else if(cmdStr == "TIME"){
       if (getStringValue(command, ';', 1).length()){
-        global_animation_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 1000);
+        global_animation_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 255);
         saveSettings();
       }
       sendCommand("TIME: Animation Time: " +String(global_animation_time));
@@ -607,11 +791,33 @@ void handleSerial(){
 
     else if(cmdStr == "PULSE"){
       if (getStringValue(command, ';', 1).length()){
-        global_pulse_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 1000);
+        global_pulse_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 255);
         saveSettings();
         switchShows=true;
       }
       sendCommand("PULSE: Pulse Time: " +String(global_pulse_time));
+    }
+    else if(cmdStr == "CYCLE"){
+      if (getStringValue(command, ';', 1).length()){
+        global_cycle_time = constrain(getStringValue(command, ';', 1).toInt(), 0, 255);
+        saveSettings();
+        switchShows=true;
+      }
+      sendCommand("CYCLE: Cycle Time: " +String(global_cycle_time));
+    }
+    else if(cmdStr == "FLIP"){
+      bool strip1_flip = STRIP1_INVERT;
+      bool strip2_flip = STRIP2_INVERT;
+      if (getStringValue(command, ';', 2).length()){
+        strip1_flip = constrain(getStringValue(command, ';', 1).toInt(), 0, 1);
+        strip2_flip = constrain(getStringValue(command, ';', 2).toInt(), 0, 1);
+        STRIP1_INVERT = strip1_flip;
+        STRIP2_INVERT = strip2_flip;
+        saveSettings();
+        switchShows=true;
+        transition=true;
+      }
+      sendCommand("FLIP: Flipped Animations: " +String(STRIP1_INVERT)+"\t"+String(STRIP2_INVERT));
     }
     else{
         sendCommand("UNREC: Unrecognized Command");
