@@ -326,12 +326,11 @@ void rainbowCycleDim(float wait, uint8_t reps, bool FullColor) {
         if(idx1>=0 & idx1<strip2.numPixels()){
           strip2.setPixelColor(idx1, Wheel(((idx2 * 256 / num_pixels_longest) + color_val2) & 255));
         }
-
-        if (j==0 && transition){
-          strip.show();
-          strip2.show();
-          delay(global_animation_time);
-         }
+      }
+      if (j==0 && transition){
+        strip.show();
+        strip2.show();
+        delay(global_animation_time);
       }
     }
        
